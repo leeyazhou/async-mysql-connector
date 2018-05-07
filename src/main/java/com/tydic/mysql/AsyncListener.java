@@ -78,7 +78,6 @@ public abstract class AsyncListener<T> extends ChannelInboundHandlerAdapter {
                 channelReadEOFPacket(ctx, byteBuf);
                 break;
             case 0xFF:
-                channel.setInErrorStream(true);
                 channelReadErrorPacket(ctx, byteBuf);
                 break;
             case 0xFC:

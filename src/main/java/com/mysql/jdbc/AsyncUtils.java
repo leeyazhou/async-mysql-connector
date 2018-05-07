@@ -2,6 +2,8 @@ package com.mysql.jdbc;
 
 import io.netty.buffer.ByteBuf;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.ResultSet;
@@ -11,16 +13,22 @@ import java.sql.SQLException;
  * Created by shihailong on 2017/9/21.
  */
 public class AsyncUtils {
-    public static ResultSet build(StatementImpl callingStatement) throws SQLException {
+    public static ResultSet build(StatementImpl callingStatement, InputStream inputStream) throws SQLException {
         MysqlIO io = callingStatement.connection.getIO();
-        Buffer packet = io.readPacket();
-        packet.setPosition(1);
-        return io.readAllResults(callingStatement, callingStatement.getMaxRows(),
-                callingStatement.getResultSetType(),
-                callingStatement.resultSetConcurrency,
-                false, callingStatement.connection.getCatalog(),
-                packet, callingStatement instanceof ServerPreparedStatement,
-                -1, null);
+        InputStream mysqlInput = io.mysqlInput;
+        try {
+            io.mysqlInput = inputStream;
+            Buffer packet = io.readPacket();
+            packet.setPosition(1);
+            return io.readAllResults(callingStatement, callingStatement.getMaxRows(),
+                    callingStatement.getResultSetType(),
+                    callingStatement.resultSetConcurrency,
+                    false, callingStatement.connection.getCatalog(),
+                    packet, callingStatement instanceof ServerPreparedStatement,
+                    -1, null);
+        }finally {
+            io.mysqlInput = mysqlInput;
+        }
     }
     private static final Method checkErrorPacket ;
     static{

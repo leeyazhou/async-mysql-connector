@@ -9,6 +9,8 @@ import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -16,9 +18,9 @@ import java.util.Properties;
  * Created by shihailong on 2017/9/22.
  */
 public class AsyncStatementInterceptor implements StatementInterceptorV2 {
-    public static final String MY_SQL_BUFFER_FRAME_DECODER_NAME = "MY_SQL_BUFFER_FRAME_DECODER";
-    public static final String TMP_LISTENER_NAME = "TMP_LISTENER";
-    public static byte[] OK = new byte[]{7, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
+    static final String MY_SQL_BUFFER_FRAME_DECODER_NAME = "MY_SQL_BUFFER_FRAME_DECODER";
+    static final String TMP_LISTENER_NAME = "TMP_LISTENER";
+    private static byte[] OK = new byte[]{7, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
     private static final Log logger = LogFactory.getLog(AsyncStatementInterceptor.class);
 
     private AsyncSocketChannel channel;
@@ -32,7 +34,7 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
         this.mySQLConnection = conn.unwrap(MySQLConnection.class);
     }
 
-    private void setCurrentActiveMySQLConnection() throws SQLException {
+    private void setCurrentActiveMySQLConnection() {
         activeMySQLConnection = mySQLConnection.getActiveMySQLConnection();
     }
 
@@ -41,7 +43,6 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
         AsyncSocket asyncSocket = (AsyncSocket) io.mysqlConnection;
         channel = asyncSocket.getAsyncSocketChannel();
         channel.setIO(io);
-        channel.setMySQLConnection(activeMySQLConnection);
         channel.setConnectionMutex(this);
     }
 
@@ -87,26 +88,43 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
         if (this.channel == null || this.listener == null || !isInterceptedStatement(interceptedStatement)) {
             return null;
         }
-
+        assert this.eventLoop.inEventLoop();
+        clearInputStream();
+        channel.config().setAutoRead(true);
+        this.eventLoop.register(channel).syncUninterruptibly();
         final ChannelPipeline pipeline = channel.pipeline();
         pipeline.addAfter(this.eventLoop, AsyncSocketFactory.DEFAULT_LOG_HANDLER, TMP_LISTENER_NAME, listener);
         pipeline.addAfter(this.eventLoop, AsyncSocketFactory.DEFAULT_LOG_HANDLER, MY_SQL_BUFFER_FRAME_DECODER_NAME, new MySQLBufferFrameDecoder());
-        channel.setMockPacket(OK);
         //noinspection unchecked
         listener.getFuture().addListener(new GenericFutureListener<Future<?>>() {
             ChannelPipeline pipeline = channel.pipeline();
 
-            public void operationComplete(Future<?> future) throws Exception {
+            public void operationComplete(Future<?> future) {
+                channel.config().setAutoRead(false);
                 pipeline.remove(TMP_LISTENER_NAME);
                 pipeline.remove(MY_SQL_BUFFER_FRAME_DECODER_NAME);
-                channel.setAsync(false);
+                channel.deregister();
             }
         });
-        this.channel.setAsync(true);
         this.interceptStatement = null;
         this.listener = null;
         this.eventLoop = null;
         return null;
+    }
+
+    private void clearInputStream() throws SQLException {
+        InputStream inputStream = channel.getInputStream();
+        try {
+            int len;
+
+            // Due to a bug in some older Linux kernels (fixed after the patch "tcp: fix FIONREAD/SIOCINQ"), our SocketInputStream.available() may return 1 even
+            // if there is no data in the Stream, so, we need to check if InputStream.skip() actually skipped anything.
+            while ((len = inputStream.available()) > 0 && inputStream.skip(len) > 0) {
+                continue;
+            }
+        } catch (IOException ioEx) {
+            throw SQLError.createCommunicationsException(mySQLConnection, 0, 0, ioEx, null);
+        }
     }
 
     private boolean isInterceptedStatement(Statement interceptedStatement) {

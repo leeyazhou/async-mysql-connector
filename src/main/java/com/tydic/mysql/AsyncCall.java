@@ -1,31 +1,48 @@
 package com.tydic.mysql;
 
+import com.mysql.jdbc.MySQLConnection;
+import com.mysql.jdbc.MysqlIO;
+import com.tydic.mysql.async.MySQLBufferFrameDecoder;
 import com.tydic.mysql.async.ResultSetListener;
 import com.tydic.mysql.async.UpdateCountListener;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import static com.tydic.mysql.AsyncStatementInterceptor.MY_SQL_BUFFER_FRAME_DECODER_NAME;
+import static com.tydic.mysql.AsyncStatementInterceptor.TMP_LISTENER_NAME;
+
 /**
  * Created by shihailong on 2017/9/21.
  */
 public class AsyncCall {
-    private static String ASYNC_DEFINE = "socketFactory="+AsyncSocketFactory.class.getName()+
-            "&statementInterceptors="+AsyncStatementInterceptor.class.getName()+
+    private static String ASYNC_DEFINE = "socketFactory=" + AsyncSocketFactory.class.getName() +
+            "&statementInterceptors=" + AsyncStatementInterceptor.class.getName() +
             "&useSSL=false";
 
-    public static String enable(String url){
+    public static String enable(String url) {
         url = url.trim();
-        if(url.lastIndexOf('?') == -1){
+        if (url.lastIndexOf('?') == -1) {
             return url + "?" + ASYNC_DEFINE;
-        }else{
+        } else {
             return url + "&" + ASYNC_DEFINE;
         }
+    }
+    public static void setEventLoopGroup(EventLoopGroup eventLoopGroup){
+        System.getProperties().put(AsyncSocketFactory.EVENT_LOOP_KEY, eventLoopGroup);
+    }
+
+    public static EventLoopGroup getEventLoopGroup(){
+        return (EventLoopGroup) System.getProperties().get(AsyncSocketFactory.EVENT_LOOP_KEY);
     }
 
     /**
@@ -40,6 +57,7 @@ public class AsyncCall {
     public static <T> Future<T> bind(Statement statement, AsyncListener<T> listener) throws SQLException {
         return AsyncStatementInterceptor.intercept(statement, listener);
     }
+
     public static <T> Future<T> bind(EventLoop eventLoop, Statement statement, AsyncListener<T> listener) throws SQLException {
         return AsyncStatementInterceptor.intercept(eventLoop, statement, listener);
     }
@@ -81,6 +99,7 @@ public class AsyncCall {
 
     /**
      * 标记Statement的执行结果以异步方式返回, 并不真正的执行.
+     *
      * @param statement 待标记对象
      * @return Future对象, 可get()获取结果, 也可以注册回调方法.
      * @throws SQLException
@@ -88,8 +107,10 @@ public class AsyncCall {
     public static Future<ResultSet> query(Statement statement) throws SQLException {
         return AsyncStatementInterceptor.intercept(statement, new ResultSetListener(statement));
     }
+
     /**
      * 标记Statement的执行结果以异步方式返回, 并不真正的执行.
+     *
      * @param statement 待标记对象
      * @return Future对象, 可get()获取结果, 也可以注册回调方法.
      * @throws SQLException

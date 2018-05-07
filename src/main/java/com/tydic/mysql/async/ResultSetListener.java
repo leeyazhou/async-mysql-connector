@@ -5,9 +5,11 @@ import com.mysql.jdbc.StatementImpl;
 import com.tydic.mysql.AsyncListener;
 import com.tydic.mysql.AsyncSocketChannel;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.PipedOutputStream;
 import java.sql.ResultSet;
@@ -19,6 +21,8 @@ import java.sql.Statement;
  */
 public class ResultSetListener extends AsyncListener<ResultSet> {
     private Statement statement;
+    private ByteBuf result = Unpooled.buffer();
+
 
     public ResultSetListener(AsyncSocketChannel asyncSocketChannel, Statement statement) {
         super(asyncSocketChannel);
@@ -37,17 +41,15 @@ public class ResultSetListener extends AsyncListener<ResultSet> {
 
     @Override
     protected void channelReadResultSetPacket(ChannelHandlerContext ctx, ByteBuf byteBuf) {
-        byteBuf.retain();
-        channel.getInputQueue().offer(byteBuf);
+        result = Unpooled.wrappedBuffer(result, byteBuf);
     }
 
     @Override
     protected void channelReadEOFPacket(ChannelHandlerContext ctx, ByteBuf byteBuf) {
-        byteBuf.retain();
-        channel.getInputQueue().offer(byteBuf);
+        result = Unpooled.wrappedBuffer(result, byteBuf);
         if (isEOFDeprecated) {
             try {
-                promise.setSuccess(AsyncUtils.build((StatementImpl) statement));
+                promise.setSuccess(AsyncUtils.build((StatementImpl) statement, new ByteArrayInputStream(result.array())));
             } catch (SQLException e) {
                 promise.setFailure(e);
             }

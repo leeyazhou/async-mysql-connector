@@ -1,99 +1,141 @@
 package com.tydic.mysql;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.net.SocketTimeoutException;
+import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
 
 /**
  * Created by shihailong on 2017/9/30.
  */
-public class AsyncSocketInputStream extends InputStream {
-    private ByteBuf byteBuf;
+public final class AsyncSocketInputStream extends InputStream {
     private final AsyncSocketChannel channel;
+    private final InputStream rawInputStream;
+    private InputStream mock;
 
-    public AsyncSocketInputStream(AsyncSocketChannel channel) {
+    AsyncSocketInputStream(AsyncSocketChannel channel, InputStream mock) {
         this.channel = channel;
+        rawInputStream = new NoBlockingInputStream();
+        this.mock = mock;
+    }
+
+    private class NoBlockingInputStream extends InputStream {
+        SocketChannel sc = channel.javaChannel();
+        ByteBuffer buffer = ByteBuffer.allocateDirect(16384);
+        ByteBuf byteBuf = Unpooled.EMPTY_BUFFER;
+        Selector selector = channel.getSelector();
+
+        @Override
+        public int read() throws IOException {
+            checkAvailable();
+            return byteBuf.readByte();
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            checkAvailable();
+            int bytes = Math.min(len, byteBuf.readableBytes());
+            byteBuf.readBytes(b, off, bytes);
+            return bytes;
+        }
+
+
+        @Override
+        public int available() {
+            return byteBuf.readableBytes();
+        }
+
+        private void checkAvailable() throws IOException {
+            if (available() <= 0) {
+                tryRead();
+            }
+        }
+
+        private void tryRead() throws IOException {
+            buffer.clear();
+            int read = sc.read(buffer);
+            if (read > 0) {
+                buffer.flip();
+                byteBuf = Unpooled.wrappedBuffer(buffer);
+                return;
+            }
+            SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ);
+            long timeOut = 30000;
+            try {
+                do {
+                    if (!sc.isOpen()) {
+                        throw new ClosedChannelException();
+                    }
+                    long var9 = System.currentTimeMillis();
+                    int var11 = selector.select(timeOut);
+                    if (var11 > 0 && selectionKey.isReadable() && sc.read(buffer) != 0) {
+                        buffer.flip();
+                        byteBuf = Unpooled.wrappedBuffer(buffer);
+                        return;
+                    }
+                    timeOut -= System.currentTimeMillis() - var9;
+                } while (timeOut > 0L);
+            } finally {
+                selector.selectedKeys().remove(selectionKey);
+            }
+            throw new SocketTimeoutException();
+        }
+    }
+
+    private InputStream delegate() {
+        return channel.isRegistered() ? mock : rawInputStream;
     }
 
     @Override
     public int read() throws IOException {
-        int available = checkReadableByteBuf();
-        if (available == 0) {
-            return -1;
-        }
-        return byteBuf.readByte() & 0xFF;
+        return delegate().read();
     }
 
-    private int checkReadableByteBuf() throws IOException {
-        if(byteBuf == null) {
-            byteBuf = take();
-            return byteBuf.readableBytes();
-        }
-        if(!byteBuf.isReadable()){
-            byteBuf.release();
-            byteBuf = take();
-        }
-        return byteBuf.readableBytes();
-    }
-
-    private ByteBuf take() throws IOException {
-        BlockingQueue<ByteBuf> inputQueue = channel.getInputQueue();
-        ByteBuf polled;
-        int socketTimeout = channel.getAsyncSocket().getSoTimeout();
-        long timeOut = 0;
-        if(socketTimeout > 0){
-            timeOut = socketTimeout + System.currentTimeMillis();
-        }
-        while(channel.isActive()){
-            try {
-                polled = inputQueue.poll(10, TimeUnit.MILLISECONDS);
-                if(polled != null){
-                    return polled;
-                }
-                if(timeOut != 0 && System.currentTimeMillis() > timeOut){
-                    throw new IOException("read timeout " + socketTimeout);
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        throw new IOException("connection is closed! " + channel);
+    @Override
+    public int read(byte[] b) throws IOException {
+        return delegate().read(b);
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        int available = checkReadableByteBuf();
-        if (available == 0) {
-            return -1;
-        }
+        return delegate().read(b, off, len);
+    }
 
-        len = Math.min(available, len);
-        byteBuf.readBytes(b, off, len);
-        return len;
+    @Override
+    public long skip(long n) throws IOException {
+        return delegate().skip(n);
     }
 
     @Override
     public int available() throws IOException {
-        BlockingQueue<ByteBuf> inputQueue = channel.getInputQueue();
-        if(byteBuf != null && (!byteBuf.isReadable())){
-            byteBuf.release();
-            byteBuf = null;
-        }
-        if(byteBuf == null && inputQueue.isEmpty()){
-            return 0;
-        }else{
-            return checkReadableByteBuf();
-        }
+        return delegate().available();
     }
 
     @Override
     public void close() throws IOException {
-        if(byteBuf != null){
-            byteBuf.release();
-        }
-        channel.close();
+        delegate().close();
+    }
+
+    @Override
+    public void mark(int readlimit) {
+        delegate().mark(readlimit);
+    }
+
+    @Override
+    public void reset() throws IOException {
+        delegate().reset();
+    }
+
+    @Override
+    public boolean markSupported() {
+        return delegate().markSupported();
     }
 }

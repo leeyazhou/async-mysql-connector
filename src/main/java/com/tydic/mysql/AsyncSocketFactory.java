@@ -17,6 +17,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PipedOutputStream;
 import java.net.Socket;
 import java.util.Properties;
@@ -29,89 +30,69 @@ import java.util.concurrent.LinkedBlockingDeque;
 public class AsyncSocketFactory implements SocketFactory {
     private static final Log logger = LogFactory.getLog(AsyncSocketFactory.class);
 
-    private static Bootstrap nettyBootstrap = new Bootstrap();
+    private static int DEFAULT_EVENT_LOOP_THREADS = SystemPropertyUtil.getInt(
+            "com.tydic.async-mysql.threads", 2);
 
-    private static int DEFAULT_EVENT_LOOP_THREADS = Math.max(4, SystemPropertyUtil.getInt(
-            "com.tydic.async-mysql.threads", Runtime.getRuntime().availableProcessors()));
+    static final String EVENT_LOOP_KEY = "com.tydic.mysql.async.eventLoopGroup";
 
-    public static final NioEventLoopGroup EVENT_EXECUTORS = new NioEventLoopGroup(DEFAULT_EVENT_LOOP_THREADS,
-            new DefaultThreadFactory("async-mysql"));
+    private static final String DEFAULT_INBOUND_HANDLER = "DEFAULT_INBOUND_HANDLER";
 
-    public static final String DEFAULT_INBOUND_HANDLER = "DEFAULT_INBOUND_HANDLER";
-
-    public static final String DEFAULT_OUTBOUND_HANDLER = "DEFAULT_OUTBOUND_HANDLER";
+    private static final String DEFAULT_OUTBOUND_HANDLER = "DEFAULT_OUTBOUND_HANDLER";
 
     public static final String DEFAULT_LOG_HANDLER = "DEFAULT_LOG_HANDLER";
 
+    private Bootstrap nettyBootstrap;
+
     static {
         InternalLoggerFactory.setDefaultFactory(Log4J2LoggerFactory.INSTANCE);
-        nettyBootstrap.group(EVENT_EXECUTORS).channel(AsyncSocketChannel.class);
+    }
+
+    private void init() {
+        nettyBootstrap = new Bootstrap();
+        EventLoopGroup eventExecutors = AsyncCall.getEventLoopGroup();
+        if (eventExecutors == null) {
+            eventExecutors = new NioEventLoopGroup(DEFAULT_EVENT_LOOP_THREADS,
+                    new DefaultThreadFactory("async-mysql"));
+            AsyncCall.setEventLoopGroup(eventExecutors);
+        }
+        nettyBootstrap.group(eventExecutors).channel(AsyncSocketChannel.class);
         nettyBootstrap.option(ChannelOption.SO_KEEPALIVE, true);
         nettyBootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
-        ChannelInitializer<AsyncSocketChannel> channelInitializer = new ChannelInitializer<AsyncSocketChannel>() {
+        nettyBootstrap.option(ChannelOption.AUTO_READ, false);
+
+        ChannelInitializer<AsyncSocketChannel> channelInitializer = getAsyncSocketChannelChannelInitializer();
+        nettyBootstrap.handler(channelInitializer);
+    }
+
+    private static ChannelInitializer<AsyncSocketChannel> getAsyncSocketChannelChannelInitializer() {
+        return new ChannelInitializer<AsyncSocketChannel>() {
             @Override
-            protected void initChannel(final AsyncSocketChannel ch) throws Exception {
+            protected void initChannel(final AsyncSocketChannel ch) {
                 ch.pipeline().addLast(DEFAULT_LOG_HANDLER, new LoggingHandler(LogLevel.DEBUG));
-                ch.pipeline().addLast(DEFAULT_INBOUND_HANDLER, new ChannelInboundHandlerAdapter() {
-
-                    @Override
-                    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-                        ctx.close();
-                        logger.warn(ctx + " inactive");
-                    }
-
-                    @Override
-                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-                        if(ch.isInErrorStream()){
-                            ReferenceCountUtil.release(msg);
-                            return;
-                        }
-                        if (msg instanceof ByteBuf) {
-                            ch.getInputQueue().offer((ByteBuf) msg);
-                        } else {
-                            super.channelRead(ctx, msg);
-                        }
-                    }
-
-                    @Override
-                    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-                        logger.error(cause);
-                        ctx.close();
-                    }
-                });
-                ch.pipeline().addLast(DEFAULT_OUTBOUND_HANDLER, new ChannelOutboundHandlerAdapter() {
-
-                    @Override
-                    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                        super.write(ctx, msg, promise);
-                    }
-                    @Override
-                    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-                        logger.error(cause);
-                        ctx.close();
-                    }
-                });
             }
         };
-        nettyBootstrap.handler(channelInitializer);
     }
 
     /**
      * The underlying TCP/IP socket to use
      */
-    protected Socket rawSocket = null;
+    private Socket rawSocket = null;
 
-    public Socket afterHandshake() throws IOException {
+    public Socket afterHandshake() {
         return rawSocket;
     }
 
-    public Socket beforeHandshake() throws IOException {
+    public Socket beforeHandshake() {
         return rawSocket;
     }
 
     public synchronized Socket connect(String host, int portNumber, Properties props) throws IOException {
         try {
+            if (nettyBootstrap == null) {
+                init();
+            }
             AsyncSocketChannel channel = (AsyncSocketChannel) nettyBootstrap.connect(host, portNumber).sync().channel();
+            channel.deregister().syncUninterruptibly();
             rawSocket = new AsyncSocket(channel);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

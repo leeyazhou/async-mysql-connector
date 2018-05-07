@@ -71,7 +71,7 @@ public class AsyncSocket extends Socket {
     }
 
     @Override
-    public InputStream getInputStream() throws IOException {
+    public InputStream getInputStream() {
         return channel.getInputStream();
     }
 
