@@ -2,12 +2,12 @@ package com.tydic.mysql;
 
 import com.mysql.jdbc.AsyncUtils;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.EventLoop;
+import io.netty.channel.*;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.Promise;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -23,31 +23,44 @@ public abstract class AsyncListener<T> extends ChannelInboundHandlerAdapter {
     private boolean inResultSetStream = false;
     private int columnCount;
     protected AsyncSocketChannel channel;
-    protected DefaultPromise<T> promise;
-    protected boolean init = false;
-
-    public AsyncListener(AsyncSocketChannel asyncSocketChannel) {
-        super();
-        init(asyncSocketChannel, asyncSocketChannel.eventLoop());
-    }
+    private DefaultPromise<T> promise;
+    private EventLoop eventLoop;
+    private static final String TMP_LISTENER_NAME = "TMP_LISTENER";
 
     protected AsyncListener() {
 
     }
 
-    public void init(AsyncSocketChannel asyncSocketChannel, EventLoop eventLoop) {
-        if (init) {
-            return;
-        }
+    public void register(AsyncSocketChannel asyncSocketChannel) {
         this.channel = asyncSocketChannel;
-        this.isEOFDeprecated = channel.getIO().isEOFDeprecated();
-        this.promise = new DefaultPromise<>(eventLoop);
-        init = true;
+        if(!channel.isRegistered()) {
+            this.isEOFDeprecated = channel.getIO().isEOFDeprecated();
+            /**
+             * 必须要注册之后，对pipeline进行添加，否则会导致采用channel原有的eventloop进行添加。会产生延迟，导致消息无法被接收。
+             */
+            this.eventLoop.register(channel).addListener(new GenericFutureListener<Future<? super Void>>() {
+                @Override
+                public void operationComplete(Future<? super Void> future) {
+                    channel.pipeline().addLast(TMP_LISTENER_NAME, AsyncListener.this);
+                }
+            });
+        }else{
+            throw new RuntimeException("the channel is register on " + channel.eventLoop().threadProperties().name());
+        }
+    }
+
+    public ChannelFuture deregister() {
+        if (channel.isRegistered()) {
+            channel.pipeline().remove(TMP_LISTENER_NAME);
+            return channel.deregister();
+        }else{
+            throw new RuntimeException("the channel is not registered");
+        }
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if(ctx.isRemoved()){
+        if (ctx.isRemoved()) {
             ReferenceCountUtil.release(msg);
         }
         synchronized (this.channel.getConnectionMutex()) {
@@ -133,27 +146,58 @@ public abstract class AsyncListener<T> extends ChannelInboundHandlerAdapter {
     }
 
     protected void channelReadResultSetPacket(ChannelHandlerContext ctx, ByteBuf byteBuf) {
-        promise.setFailure(new IOException("非预期的报文"));
+        setFailure(new IOException("非预期的报文"));
     }
 
     protected void channelReadErrorPacket(ChannelHandlerContext ctx, ByteBuf error) {
-        try{
+        try {
             AsyncUtils.checkErrorPacket(channel.getIO(), error);
-        }catch (SQLException e){
+        } catch (SQLException e) {
             logger.error(e);
-            promise.setFailure(e);
+            setFailure(e);
         }
     }
 
     protected void channelReadEOFPacket(ChannelHandlerContext ctx, ByteBuf eof) {
-        promise.setFailure(new IOException("非预期的报文"));
+        setFailure(new IOException("非预期的报文"));
     }
 
     protected void channelReadOKPacket(ChannelHandlerContext ctx, ByteBuf ok) {
-        promise.setFailure(new IOException("非预期的报文"));
+        setFailure(new IOException("非预期的报文"));
     }
 
-    public Future<T> getFuture() {
+    public Promise<T> getFuture() {
+        if (promise == null) {
+            promise = new DefaultPromise<>(getEventLoop());
+        }
+        return promise;
+    }
+
+    public final void setEventLoop(EventLoop eventLoop) {
+        this.eventLoop = eventLoop;
+    }
+
+    private EventLoop getEventLoop() {
+        return eventLoop;
+    }
+
+    protected final Promise<T> setFailure(final Throwable cause) {
+        deregister().addListener(new GenericFutureListener<Future<? super Void>>() {
+            @Override
+            public void operationComplete(Future<? super Void> future) throws Exception {
+                promise.setFailure(cause);
+            }
+        });
+        return promise;
+    }
+
+    protected final Promise<T> setSuccess(final T result) {
+        deregister().addListener(new GenericFutureListener<Future<? super Void>>() {
+            @Override
+            public void operationComplete(Future<? super Void> future) throws Exception {
+                promise.setSuccess(result);
+            }
+        });
         return promise;
     }
 }

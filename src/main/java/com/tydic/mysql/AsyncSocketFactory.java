@@ -1,6 +1,7 @@
 package com.tydic.mysql;
 
 import com.mysql.jdbc.SocketFactory;
+import com.tydic.mysql.async.MySQLBufferFrameDecoder;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -28,7 +29,8 @@ import java.util.concurrent.LinkedBlockingDeque;
  * Created by shihailong on 2017/9/21.
  */
 public class AsyncSocketFactory implements SocketFactory {
-    private static final Log logger = LogFactory.getLog(AsyncSocketFactory.class);
+    private static final Log LOGGER = LogFactory.getLog(AsyncSocketFactory.class);
+    static final String MY_SQL_BUFFER_FRAME_DECODER_NAME = "MY_SQL_BUFFER_FRAME_DECODER";
 
     private static int DEFAULT_EVENT_LOOP_THREADS = SystemPropertyUtil.getInt(
             "com.tydic.async-mysql.threads", 2);
@@ -69,6 +71,7 @@ public class AsyncSocketFactory implements SocketFactory {
             @Override
             protected void initChannel(final AsyncSocketChannel ch) {
                 ch.pipeline().addLast(DEFAULT_LOG_HANDLER, new LoggingHandler(LogLevel.DEBUG));
+                ch.pipeline().addLast(MY_SQL_BUFFER_FRAME_DECODER_NAME, new MySQLBufferFrameDecoder());
             }
         };
     }
@@ -93,6 +96,7 @@ public class AsyncSocketFactory implements SocketFactory {
             }
             AsyncSocketChannel channel = (AsyncSocketChannel) nettyBootstrap.connect(host, portNumber).sync().channel();
             channel.deregister().syncUninterruptibly();
+            channel.config().setAutoRead(true);
             rawSocket = new AsyncSocket(channel);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

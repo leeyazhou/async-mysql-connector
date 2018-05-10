@@ -9,10 +9,4 @@ import io.netty.channel.EventLoop;
  */
 public abstract class BinaryStreamListener extends AsyncListener<Void> {
 
-    public BinaryStreamListener() {
-        super();
-    }
-    public void init(AsyncSocketChannel asyncSocketChannel, EventLoop eventLoop){
-        super.init(asyncSocketChannel, eventLoop);
-    }
 }

@@ -9,8 +9,6 @@ import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -18,10 +16,7 @@ import java.util.Properties;
  * Created by shihailong on 2017/9/22.
  */
 public class AsyncStatementInterceptor implements StatementInterceptorV2 {
-    static final String MY_SQL_BUFFER_FRAME_DECODER_NAME = "MY_SQL_BUFFER_FRAME_DECODER";
-    static final String TMP_LISTENER_NAME = "TMP_LISTENER";
-    private static byte[] OK = new byte[]{7, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
-    private static final Log logger = LogFactory.getLog(AsyncStatementInterceptor.class);
+    private static final Log LOGGER = LogFactory.getLog(AsyncStatementInterceptor.class);
 
     private AsyncSocketChannel channel;
     private MySQLConnection mySQLConnection;
@@ -76,60 +71,32 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
         if (eventLoop == null) {
             eventLoop = interceptor.channel.eventLoop();
         }
-        listener.init(interceptor.channel, eventLoop);
+        listener.setEventLoop(eventLoop);
         interceptor.listener = listener;
         return listener.getFuture();
     }
 
-    public ResultSetInternalMethods preProcess(String sql, Statement interceptedStatement, Connection connection) throws SQLException {
-        if (logger.isInfoEnabled()) {
-            logger.info("preProcess " + sql);
+    public ResultSetInternalMethods preProcess(String sql, Statement interceptedStatement, Connection connection) {
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("preProcess " + sql);
         }
         if (this.channel == null || this.listener == null || !isInterceptedStatement(interceptedStatement)) {
             return null;
         }
         assert this.eventLoop.inEventLoop();
-        clearInputStream();
-        channel.config().setAutoRead(true);
-        this.eventLoop.register(channel).syncUninterruptibly();
-        final ChannelPipeline pipeline = channel.pipeline();
-        pipeline.addAfter(this.eventLoop, AsyncSocketFactory.DEFAULT_LOG_HANDLER, TMP_LISTENER_NAME, listener);
-        pipeline.addAfter(this.eventLoop, AsyncSocketFactory.DEFAULT_LOG_HANDLER, MY_SQL_BUFFER_FRAME_DECODER_NAME, new MySQLBufferFrameDecoder());
-        //noinspection unchecked
-        listener.getFuture().addListener(new GenericFutureListener<Future<?>>() {
-            ChannelPipeline pipeline = channel.pipeline();
-
-            public void operationComplete(Future<?> future) {
-                channel.config().setAutoRead(false);
-                pipeline.remove(TMP_LISTENER_NAME);
-                pipeline.remove(MY_SQL_BUFFER_FRAME_DECODER_NAME);
-                channel.deregister();
-            }
-        });
+        listener.register(channel);
         this.interceptStatement = null;
         this.listener = null;
         this.eventLoop = null;
         return null;
     }
 
-    private void clearInputStream() throws SQLException {
-        InputStream inputStream = channel.getInputStream();
-        try {
-            int len;
-
-            // Due to a bug in some older Linux kernels (fixed after the patch "tcp: fix FIONREAD/SIOCINQ"), our SocketInputStream.available() may return 1 even
-            // if there is no data in the Stream, so, we need to check if InputStream.skip() actually skipped anything.
-            while ((len = inputStream.available()) > 0 && inputStream.skip(len) > 0) {
-                continue;
-            }
-        } catch (IOException ioEx) {
-            throw SQLError.createCommunicationsException(mySQLConnection, 0, 0, ioEx, null);
-        }
-    }
-
     private boolean isInterceptedStatement(Statement interceptedStatement) {
+        if(interceptStatement == null || interceptedStatement == null){
+            return false;
+        }
         // proxy 时,怎么判断是否拦截的问题
-        return interceptStatement == interceptedStatement || interceptedStatement.toString().equals(interceptStatement.toString());
+        return  interceptStatement == interceptedStatement || interceptedStatement.toString().equals(interceptStatement.toString());
     }
 
     public boolean executeTopLevelOnly() {
@@ -140,9 +107,9 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
 
     }
 
-    public ResultSetInternalMethods postProcess(String sql, Statement interceptedStatement, ResultSetInternalMethods originalResultSet, Connection connection, int warningCount, boolean noIndexUsed, boolean noGoodIndexUsed, SQLException statementException) throws SQLException {
-        if (logger.isInfoEnabled()) {
-            logger.info("postProcess " + sql);
+    public ResultSetInternalMethods postProcess(String sql, Statement interceptedStatement, ResultSetInternalMethods originalResultSet, Connection connection, int warningCount, boolean noIndexUsed, boolean noGoodIndexUsed, SQLException statementException) {
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("postProcess " + sql);
         }
         return null;
     }

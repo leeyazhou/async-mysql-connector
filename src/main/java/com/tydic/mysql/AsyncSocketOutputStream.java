@@ -2,21 +2,26 @@ package com.tydic.mysql;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
+import static io.netty.buffer.ByteBufUtil.appendPrettyHexDump;
+import static io.netty.util.internal.StringUtil.NEWLINE;
+
 public final class AsyncSocketOutputStream
         extends OutputStream {
     private final AsyncSocketChannel channel;
-    private final InputStream mock;
+    private final AsyncSocketInputStream inputStream;
 
-    AsyncSocketOutputStream(AsyncSocketChannel channel, InputStream mockInputStream) {
+    AsyncSocketOutputStream(AsyncSocketChannel channel) {
         this.channel = channel;
-        this.mock = mockInputStream;
+        inputStream = (AsyncSocketInputStream) channel.getInputStream();
+
     }
 
     @Override
@@ -34,6 +39,7 @@ public final class AsyncSocketOutputStream
         syncWrite(Unpooled.wrappedBuffer(b, off, len));
     }
     private void syncWrite(ByteBuf byteBuf) throws IOException {
+        channel.log("WRITE", byteBuf);
         ByteBuffer[] nioBuffers = byteBuf.nioBuffers();
         int nioBufferCnt = byteBuf.nioBufferCount();
         long expectedWrittenBytes = byteBuf.readableBytes();
@@ -72,6 +78,11 @@ public final class AsyncSocketOutputStream
                     break;
             }
         }
-        mock.reset();
+        if(channel.isRegistered()){
+            if(!channel.eventLoop().inEventLoop()){
+                throw new RuntimeException("未预期的报文发送请求, 当前Channel已经注册在" + channel.eventLoop().threadProperties().name());
+            }
+            inputStream.switchToMock();
+        }
     }
 }

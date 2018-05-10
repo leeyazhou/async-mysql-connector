@@ -1,25 +1,15 @@
 package com.tydic.mysql;
 
-import com.mysql.jdbc.MySQLConnection;
-import com.mysql.jdbc.MysqlIO;
-import com.tydic.mysql.async.MySQLBufferFrameDecoder;
 import com.tydic.mysql.async.ResultSetListener;
 import com.tydic.mysql.async.UpdateCountListener;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
-import static com.tydic.mysql.AsyncStatementInterceptor.MY_SQL_BUFFER_FRAME_DECODER_NAME;
-import static com.tydic.mysql.AsyncStatementInterceptor.TMP_LISTENER_NAME;
 
 /**
  * Created by shihailong on 2017/9/21.

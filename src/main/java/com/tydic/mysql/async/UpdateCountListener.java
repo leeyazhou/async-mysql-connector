@@ -9,13 +9,6 @@ import io.netty.channel.ChannelHandlerContext;
  * Created by shihailong on 2017/9/21.
  */
 public class UpdateCountListener extends AsyncListener<Integer> {
-    public UpdateCountListener(AsyncSocketChannel asyncSocketChannel) {
-        super(asyncSocketChannel);
-    }
-
-    public UpdateCountListener() {
-        super();
-    }
 
     @Override
     protected void channelReadOKPacket(ChannelHandlerContext ctx, ByteBuf ok) {
@@ -37,6 +30,6 @@ public class UpdateCountListener extends AsyncListener<Integer> {
             default:
                 break;
         }
-        promise.setSuccess(sw);
+        setSuccess(sw);
     }
 }

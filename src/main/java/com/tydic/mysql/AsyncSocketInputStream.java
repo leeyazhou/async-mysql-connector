@@ -19,12 +19,27 @@ import java.nio.channels.SocketChannel;
 public final class AsyncSocketInputStream extends InputStream {
     private final AsyncSocketChannel channel;
     private final InputStream rawInputStream;
+    private static byte[] OK = new byte[]{7, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
     private InputStream mock;
 
-    AsyncSocketInputStream(AsyncSocketChannel channel, InputStream mock) {
+    AsyncSocketInputStream(AsyncSocketChannel channel) {
         this.channel = channel;
         rawInputStream = new NoBlockingInputStream();
-        this.mock = mock;
+        mock = new ByteArrayInputStream(OK);
+        try {
+            //noinspection ResultOfMethodCallIgnored
+            mock.skip(OK.length);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void switchToMock() {
+        try {
+            mock.reset();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private class NoBlockingInputStream extends InputStream {
@@ -49,24 +64,22 @@ public final class AsyncSocketInputStream extends InputStream {
 
 
         @Override
-        public int available() {
+        public int available() throws IOException {
+            if (byteBuf.readableBytes() == 0) {
+                fastRead();
+            }
             return byteBuf.readableBytes();
         }
 
         private void checkAvailable() throws IOException {
             if (available() <= 0) {
-                tryRead();
+                if (fastRead()) return;
+                timeOutRead();
             }
         }
 
-        private void tryRead() throws IOException {
+        private void timeOutRead() throws IOException {
             buffer.clear();
-            int read = sc.read(buffer);
-            if (read > 0) {
-                buffer.flip();
-                byteBuf = Unpooled.wrappedBuffer(buffer);
-                return;
-            }
             SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ);
             long timeOut = 30000;
             try {
@@ -79,6 +92,7 @@ public final class AsyncSocketInputStream extends InputStream {
                     if (var11 > 0 && selectionKey.isReadable() && sc.read(buffer) != 0) {
                         buffer.flip();
                         byteBuf = Unpooled.wrappedBuffer(buffer);
+                        channel.log("READ", byteBuf);
                         return;
                     }
                     timeOut -= System.currentTimeMillis() - var9;
@@ -87,6 +101,18 @@ public final class AsyncSocketInputStream extends InputStream {
                 selector.selectedKeys().remove(selectionKey);
             }
             throw new SocketTimeoutException();
+        }
+
+        private boolean fastRead() throws IOException {
+            buffer.clear();
+            int read = sc.read(buffer);
+            if (read > 0) {
+                buffer.flip();
+                byteBuf = Unpooled.wrappedBuffer(buffer);
+                channel.log("READ", byteBuf);
+                return true;
+            }
+            return false;
         }
     }
 

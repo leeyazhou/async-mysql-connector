@@ -24,19 +24,8 @@ public class ResultSetListener extends AsyncListener<ResultSet> {
     private ByteBuf result = Unpooled.buffer();
 
 
-    public ResultSetListener(AsyncSocketChannel asyncSocketChannel, Statement statement) {
-        super(asyncSocketChannel);
-        this.statement = statement;
-    }
-
     public ResultSetListener(Statement statement) {
-        super();
         this.statement = statement;
-    }
-
-    @Override
-    public void init(AsyncSocketChannel asyncSocketChannel, EventLoop eventLoop) {
-        super.init(asyncSocketChannel, eventLoop);
     }
 
     @Override
@@ -49,9 +38,9 @@ public class ResultSetListener extends AsyncListener<ResultSet> {
         result = Unpooled.wrappedBuffer(result, byteBuf);
         if (isEOFDeprecated) {
             try {
-                promise.setSuccess(AsyncUtils.build((StatementImpl) statement, new ByteArrayInputStream(result.array())));
+                setSuccess(AsyncUtils.build((StatementImpl) statement, new ByteArrayInputStream(result.array())));
             } catch (SQLException e) {
-                promise.setFailure(e);
+                setFailure(e);
             }
         }
     }
