@@ -176,8 +176,8 @@ public class AsyncSocket extends Socket {
     }
 
     @Override
-    public void close() throws IOException {
-        rawSocket.close();
+    public void close() {
+        channel.close();
     }
 
     @Override

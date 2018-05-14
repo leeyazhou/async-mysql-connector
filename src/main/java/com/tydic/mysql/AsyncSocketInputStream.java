@@ -147,7 +147,8 @@ public final class AsyncSocketInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        delegate().close();
+        rawInputStream.close();
+        mock.close();
     }
 
     @Override

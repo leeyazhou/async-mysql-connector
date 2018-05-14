@@ -1,11 +1,8 @@
 package com.tydic.mysql;
 
 import com.mysql.jdbc.*;
-import com.tydic.mysql.async.MySQLBufferFrameDecoder;
-import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -84,7 +81,7 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
             return null;
         }
         assert this.eventLoop.inEventLoop();
-        listener.register(channel);
+        listener.register(channel).syncUninterruptibly();
         this.interceptStatement = null;
         this.listener = null;
         this.eventLoop = null;

@@ -31,14 +31,14 @@ public abstract class AsyncListener<T> extends ChannelInboundHandlerAdapter {
 
     }
 
-    public void register(AsyncSocketChannel asyncSocketChannel) {
+    public ChannelFuture register(AsyncSocketChannel asyncSocketChannel) {
         this.channel = asyncSocketChannel;
         if(!channel.isRegistered()) {
             this.isEOFDeprecated = channel.getIO().isEOFDeprecated();
             /**
              * 必须要注册之后，对pipeline进行添加，否则会导致采用channel原有的eventloop进行添加。会产生延迟，导致消息无法被接收。
              */
-            this.eventLoop.register(channel).addListener(new GenericFutureListener<Future<? super Void>>() {
+            return this.eventLoop.register(channel).addListener(new GenericFutureListener<Future<? super Void>>() {
                 @Override
                 public void operationComplete(Future<? super Void> future) {
                     channel.pipeline().addLast(TMP_LISTENER_NAME, AsyncListener.this);
