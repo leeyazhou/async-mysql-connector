@@ -79,9 +79,6 @@ public final class AsyncSocketOutputStream
             }
         }
         if(channel.isRegistered()){
-            if(!channel.eventLoop().inEventLoop()){
-                throw new RuntimeException("未预期的报文发送请求, 当前Channel已经注册在" + channel.eventLoop().threadProperties().name());
-            }
             inputStream.switchToMock();
         }
     }
