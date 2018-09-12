@@ -81,7 +81,7 @@ public final class AsyncSocketInputStream extends InputStream {
         private void timeOutRead() throws IOException {
             buffer.clear();
             SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ);
-            long timeOut = 30000;
+            long timeOut = 60000;
             try {
                 do {
                     if (!sc.isOpen()) {

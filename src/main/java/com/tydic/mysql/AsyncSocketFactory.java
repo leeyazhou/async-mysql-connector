@@ -3,13 +3,13 @@ package com.tydic.mysql;
 import com.mysql.jdbc.SocketFactory;
 import com.tydic.mysql.async.MySQLBufferFrameDecoder;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.channel.*;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.internal.SystemPropertyUtil;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -18,12 +18,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PipedOutputStream;
 import java.net.Socket;
 import java.util.Properties;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Created by shihailong on 2017/9/21.
@@ -61,7 +57,6 @@ public class AsyncSocketFactory implements SocketFactory {
         nettyBootstrap.option(ChannelOption.SO_KEEPALIVE, true);
         nettyBootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
         nettyBootstrap.option(ChannelOption.AUTO_READ, false);
-
         ChannelInitializer<AsyncSocketChannel> channelInitializer = getAsyncSocketChannelChannelInitializer();
         nettyBootstrap.handler(channelInitializer);
     }
