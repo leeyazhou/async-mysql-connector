@@ -2,10 +2,11 @@
 异步的mysql驱动
 
 ```
+<!-- https://mvnrepository.com/artifact/com.github.bj-tydic/async-mysql-connector -->
 <dependency>
-  <groupId>com.github.bj-tydic</groupId>
-  <artifactId>async-mysql-connector</artifactId>
-  <version>1.0</version>
+    <groupId>com.github.bj-tydic</groupId>
+    <artifactId>async-mysql-connector</artifactId>
+    <version>1.6</version>
 </dependency>
 ```
 
