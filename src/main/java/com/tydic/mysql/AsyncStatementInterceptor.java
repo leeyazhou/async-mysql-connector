@@ -66,7 +66,8 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
         interceptor.setCurrentAsyncSocketChannel();
         EventLoop eventLoop = interceptor.eventLoop;
         if (eventLoop == null) {
-            eventLoop = interceptor.channel.eventLoop();
+            eventLoop = AsyncCall.getEventLoopGroup().next();
+            interceptor.eventLoop = eventLoop;
         }
         listener.setEventLoop(eventLoop);
         interceptor.listener = listener;
@@ -80,7 +81,7 @@ public class AsyncStatementInterceptor implements StatementInterceptorV2 {
         if (this.channel == null || this.listener == null || !isInterceptedStatement(interceptedStatement)) {
             return null;
         }
-        assert this.eventLoop.inEventLoop();
+//        assert this.eventLoop.inEventLoop();
         listener.register(channel).syncUninterruptibly();
         this.interceptStatement = null;
         this.listener = null;

@@ -3,6 +3,7 @@ package com.tydic.mysql;
 import com.mysql.jdbc.MysqlIO;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.EventLoop;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -35,7 +36,6 @@ public final class AsyncSocketChannel extends NioSocketChannel {
     private AsyncSocketOutputStream asyncSocketOutputStream;
 
     private Selector selector;
-
 
     public AsyncSocketChannel() {
         super();

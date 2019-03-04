@@ -5,6 +5,7 @@ import com.mysql.jdbc.StatementImpl;
 import com.tydic.mysql.AsyncListener;
 import com.tydic.mysql.AsyncSocketChannel;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
@@ -38,7 +39,7 @@ public class ResultSetListener extends AsyncListener<ResultSet> {
         result = Unpooled.wrappedBuffer(result, byteBuf);
         if (isEOFDeprecated) {
             try {
-                setSuccess(AsyncUtils.build((StatementImpl) statement, new ByteArrayInputStream(result.array())));
+                setSuccess(AsyncUtils.build((StatementImpl) statement, new ByteBufInputStream(result)));
             } catch (SQLException e) {
                 setFailure(e);
             }

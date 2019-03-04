@@ -28,18 +28,31 @@ public final class AsyncSocketOutputStream
 
     @Override
     public void write(int b) throws IOException {
-        syncWrite(Unpooled.wrappedBuffer(new byte[]{(byte)b}));
+        write(new byte[]{(byte)b});
     }
 
     @Override
     public void write(byte[] b) throws IOException {
-        syncWrite(Unpooled.wrappedBuffer(b));
+        write(b, 0, b.length);
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
-        syncWrite(Unpooled.wrappedBuffer(b, off, len));
+        if(channel.isRegistered()){
+            channel.write(Unpooled.wrappedBuffer(b, off, len));
+        }else {
+            syncWrite(Unpooled.wrappedBuffer(b, off, len));
+        }
     }
+
+    @Override
+    public void flush() {
+        if(channel.isRegistered()){
+            channel.flush();
+            inputStream.switchToMock();
+        }
+    }
+
     private void waitWriteable(long timeOut) throws IOException {
         SelectionKey selectionKey = socketChannel.register(selector, SelectionKey.OP_WRITE);
         try {
@@ -101,9 +114,6 @@ public final class AsyncSocketOutputStream
                     }
                     break;
             }
-        }
-        if(channel.isRegistered()){
-            inputStream.switchToMock();
         }
     }
 }
