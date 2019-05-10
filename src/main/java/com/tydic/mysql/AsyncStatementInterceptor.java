@@ -1,19 +1,26 @@
 package com.tydic.mysql;
 
-import com.mysql.jdbc.*;
-import io.netty.channel.EventLoop;
-import io.netty.util.concurrent.Future;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
 import java.sql.SQLException;
 import java.util.Properties;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.mysql.jdbc.Connection;
+import com.mysql.jdbc.MySQLConnection;
+import com.mysql.jdbc.MysqlIO;
+import com.mysql.jdbc.ResultSetInternalMethods;
+import com.mysql.jdbc.Statement;
+import com.mysql.jdbc.StatementInterceptorV2;
+
+import io.netty.channel.EventLoop;
+import io.netty.util.concurrent.Future;
 
 /**
  * Created by shihailong on 2017/9/22.
  */
 public class AsyncStatementInterceptor implements StatementInterceptorV2 {
-    private static final Log LOGGER = LogFactory.getLog(AsyncStatementInterceptor.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AsyncStatementInterceptor.class);
 
     private AsyncSocketChannel channel;
     private MySQLConnection mySQLConnection;

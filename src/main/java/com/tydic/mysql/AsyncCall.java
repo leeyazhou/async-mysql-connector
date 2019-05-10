@@ -1,15 +1,16 @@
 package com.tydic.mysql;
 
-import com.tydic.mysql.async.ResultSetListener;
-import com.tydic.mysql.async.UpdateCountListener;
-import io.netty.channel.EventLoop;
-import io.netty.channel.EventLoopGroup;
-import io.netty.util.concurrent.Future;
-
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+
+import com.tydic.mysql.async.ResultSetListener;
+import com.tydic.mysql.async.UpdateCountListener;
+
+import io.netty.channel.EventLoop;
+import io.netty.channel.EventLoopGroup;
+import io.netty.util.concurrent.Future;
 
 /**
  * Created by shihailong on 2017/9/21.

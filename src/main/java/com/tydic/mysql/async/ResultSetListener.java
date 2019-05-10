@@ -1,21 +1,17 @@
 package com.tydic.mysql.async;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
 import com.mysql.jdbc.AsyncUtils;
 import com.mysql.jdbc.StatementImpl;
 import com.tydic.mysql.AsyncListener;
-import com.tydic.mysql.AsyncSocketChannel;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.EventLoop;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.PipedOutputStream;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 
 /**
  * Created by shihailong on 2017/9/21.

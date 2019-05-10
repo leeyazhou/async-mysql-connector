@@ -1,32 +1,27 @@
 package com.tydic.mysql;
 
-import com.mysql.jdbc.MysqlIO;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.EventLoop;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import static io.netty.buffer.ByteBufUtil.appendPrettyHexDump;
+import static io.netty.util.internal.StringUtil.NEWLINE;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 
-import static io.netty.buffer.ByteBufUtil.appendPrettyHexDump;
-import static io.netty.util.internal.StringUtil.NEWLINE;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.mysql.jdbc.MysqlIO;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.socket.nio.NioSocketChannel;
 
 /**
  * Created by shihailong on 2017/9/21.
  */
 public final class AsyncSocketChannel extends NioSocketChannel {
-    private static final Log LOGGER = LogFactory.getLog(AsyncSocketChannel.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AsyncSocketChannel.class);
 
     private MysqlIO io;
     private volatile Object connectionMutex;

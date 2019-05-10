@@ -1,13 +1,12 @@
 package com.mysql.jdbc;
 
-import io.netty.buffer.ByteBuf;
-
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * Created by shihailong on 2017/9/21.

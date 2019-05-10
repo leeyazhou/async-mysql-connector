@@ -1,10 +1,10 @@
 package com.tydic.mysql.async;
 
+import java.nio.ByteOrder;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-
-import java.nio.ByteOrder;
 
 /**
  * Created by shihailong on 2017/9/21.

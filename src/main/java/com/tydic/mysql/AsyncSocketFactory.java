@@ -1,7 +1,15 @@
 package com.tydic.mysql;
 
+import java.io.IOException;
+import java.net.Socket;
+import java.util.Properties;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mysql.jdbc.SocketFactory;
 import com.tydic.mysql.async.MySQLBufferFrameDecoder;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelInitializer;
@@ -14,18 +22,12 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.internal.SystemPropertyUtil;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Log4J2LoggerFactory;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
-import java.io.IOException;
-import java.net.Socket;
-import java.util.Properties;
 
 /**
  * Created by shihailong on 2017/9/21.
  */
 public class AsyncSocketFactory implements SocketFactory {
-    private static final Log LOGGER = LogFactory.getLog(AsyncSocketFactory.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AsyncSocketFactory.class);
     static final String MY_SQL_BUFFER_FRAME_DECODER_NAME = "MY_SQL_BUFFER_FRAME_DECODER";
 
     private static int DEFAULT_EVENT_LOOP_THREADS = SystemPropertyUtil.getInt(

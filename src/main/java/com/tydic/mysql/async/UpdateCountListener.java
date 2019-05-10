@@ -1,7 +1,7 @@
 package com.tydic.mysql.async;
 
 import com.tydic.mysql.AsyncListener;
-import com.tydic.mysql.AsyncSocketChannel;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 
